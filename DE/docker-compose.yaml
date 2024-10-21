@@ -1,0 +1,9 @@
+version: '3.8'
+
+services:
+  greenplum:
+    image: andruche/greenplum:7
+    container_name: greenplum
+    ports:
+      - "5432:5432"
+    restart: always
