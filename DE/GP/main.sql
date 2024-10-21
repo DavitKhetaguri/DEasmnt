@@ -1,8 +1,6 @@
 create schema deasmnt;
 
-
-drop table deasmnt.customers;
-drop table deasmnt.products;
+--- olap სისტემისთვის constraint-ებით (pk-fk დამოკიდებულება, not null) შეზღუდვა არაა კარგი პრაქტიკა. (მითუმეტეს პარალელური პროცესებისას).
 
 create table deasmnt.customers 
  (
@@ -10,59 +8,67 @@ create table deasmnt.customers
  customer_name varchar(100),
  email_address varchar(100),
  country varchar(50)
- );
+ )distributed replicated
+;
 -- distributed by (customer_id)
  
-
 create table deasmnt.products 
 (
 product_id int  primary key,
 product_name varchar(50),
 price decimal(10, 2),
 category varchar(50)
-);
+)
+distributed replicated
+;
 
 create table deasmnt.sales_transactions (
-    transaction_id bigint primary key,
+    transaction_id bigint,
     customer_id int,
     product_id int,
     purchase_date timestamp,
     quantity int,
-    total_amount decimal(10, 2)
-);
+    total_amount decimal(10, 2),
+    CONSTRAINT sales_transactions_pk primary key ( transaction_id, purchase_date )
+)
+WITH (appendoptimized=true, orientation=column)
+distributed by (transaction_id)
+partition by range (purchase_date)
+    
+(start ('01-01-2020') end ('01-01-2030') every (interval '1 month'));
 
 
 create table deasmnt.shipping_details (
-    transaction_id bigint primary key,
-    shipping_date timestamp not null,
-    shipping_address varchar(255) not null,
-    city varchar(100) not null,
-    country varchar(50) not null  
-);
+    transaction_id bigint ,
+    shipping_date timestamp ,
+    shipping_address varchar(255),
+    city varchar(100),
+    country varchar(50),
+     CONSTRAINT shipping_details_pk primary key ( transaction_id, shipping_date )
+)
+WITH (appendoptimized=true, orientation=column)
+distributed by (transaction_id)
+partition by range (shipping_date)
+    
+(start ('01-01-2020') end ('01-01-2030') every (interval '1 month'));
 
--- insert into deasmnt.sales_transactions(transaction_id,
--- purchase_date,
--- total_amount)
--- values(1,'2017-03-14',10);
+
+
 
 ------------1
 select sum(total_amount) as sales_amount, 
 	   count(1) as num_of_transactions,
-	   date_trunc('month', x.purchase_date) as month 
+	   date_trunc('day', x.purchase_date) as month 
 from deasmnt.sales_transactions x
-group by date_trunc('month', x.purchase_date);
-
-
+group by date_trunc('day', x.purchase_date);
 ------------2
+
 with sales as (
 select sum(total_amount) as sales_amount, 
 	   count(1) as num_of_transactions,
-	   date_trunc('month', x.purchase_date) as month 
+	   date_trunc('day', x.purchase_date) as month 
 from deasmnt.sales_transactions x
-group by date_trunc('month', x.purchase_date))
-select month,
-sales_amount,
-avg(sales_amount) over(order by month rows between 2 preceding and current row) as moving_average
-from sales;
+group by date_trunc('day', x.purchase_date))
+select * from sales;
 
 
